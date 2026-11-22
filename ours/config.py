@@ -6,6 +6,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 HME100K_HF_REPO = "ConstantHao/HME100K"
 HME100K_REVISION = "68ea96bd2527aac3799f94803a5f86b92fd9c2d2"
+HME100K_FILES = {
+    "train": ["data/train-00000-of-00002.parquet", "data/train-00001-of-00002.parquet"],
+    "test": ["data/test-00000-of-00001.parquet"],
+}
+HME100K_EXCLUDED = REPO_ROOT / "ours/hme100k_excluded.tsv"
+HME100K_VAL_SPLIT = REPO_ROOT / "ours/hme100k_val.txt"
 
 CROHME_CHECKPOINT = (
     REPO_ROOT

@@ -5,13 +5,15 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from ours.config import CROHME_DICT, HME100K_DICT, HME100K_HF_REPO, HME100K_REVISION, REPO_ROOT
+from ours.config import (
+    CROHME_DICT,
+    HME100K_DICT,
+    HME100K_EXCLUDED as EXCLUDED,
+    HME100K_FILES as FILES,
+    HME100K_HF_REPO,
+    HME100K_REVISION,
+)
 
-EXCLUDED = REPO_ROOT / "ours/hme100k_excluded.tsv"
-FILES = {
-    "train": ["data/train-00000-of-00002.parquet", "data/train-00001-of-00002.parquet"],
-    "test": ["data/test-00000-of-00001.parquet"],
-}
 CHINESE = re.compile(r"[一-鿿]")
 
 

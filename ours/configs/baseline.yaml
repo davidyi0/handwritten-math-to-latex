@@ -1,0 +1,54 @@
+# Baseline: fork's scale augmentation only. The other runs change only data.augment and run_dir.
+seed_everything: 7
+run_dir: /content/drive/MyDrive/comer_runs/baseline
+init_ckpt: checkpoints/crohme_expanded_hme100k.ckpt
+ckpt_path: last
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: 16
+  max_epochs: 10
+  check_val_every_n_epoch: 1
+  reload_dataloaders_every_n_epochs: 1
+  deterministic: false
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: epoch
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        save_last: true
+        save_top_k: 1
+        monitor: val_ExpRate
+        mode: max
+        filename: '{epoch}-{step}-{val_ExpRate:.4f}'
+
+model:
+  d_model: 256
+  growth_rate: 24
+  num_layers: 16
+  nhead: 8
+  num_decoder_layers: 3
+  dim_feedforward: 1024
+  dropout: 0.3
+  dc: 32
+  cross_coverage: true
+  self_coverage: true
+  beam_size: 10
+  max_len: 200
+  alpha: 1.0
+  early_stopping: false
+  temperature: 1.0
+  learning_rate: 0.02
+  patience: 4
+
+data:
+  data_dir: /content/hme100k
+  val_limit: 1000
+  train_batch_size: 8
+  eval_batch_size: 4
+  batch_pixels: 320000
+  num_workers: 2
+  scale_aug: true
+  augment: null
