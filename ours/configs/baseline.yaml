@@ -8,7 +8,7 @@ trainer:
   accelerator: gpu
   devices: 1
   precision: 16
-  max_epochs: 10
+  max_epochs: 15
   check_val_every_n_epoch: 1
   reload_dataloaders_every_n_epochs: 1
   deterministic: false
