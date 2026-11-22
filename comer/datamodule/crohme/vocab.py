@@ -5,6 +5,10 @@ from typing import Dict, List
 
 @lru_cache()
 def default_dict():
+    # COMER_DICT overrides the dictionary; set it before importing comer.
+    override = os.environ.get("COMER_DICT")
+    if override:
+        return override
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "dictionary.txt")
 
 
@@ -20,7 +24,7 @@ class CROHMEVocab:
         self.word2idx["<sos>"] = self.SOS_IDX
         self.word2idx["<eos>"] = self.EOS_IDX
 
-        with open(dict_path, "r") as f:
+        with open(dict_path, "r", encoding="utf-8") as f:
             for line in f.readlines():
                 w = line.strip()
                 self.word2idx[w] = len(self.word2idx)
