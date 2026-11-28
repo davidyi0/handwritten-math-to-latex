@@ -18,6 +18,7 @@ import yaml
 
 from comer.lit_comer import LitCoMER
 from ours.hme100k_datamodule import HME100KDatamodule
+from ours.imagenet_encoder import FreezeDecoder, load_decoder, swap_encoder
 
 COMMANDS = ("fit", "validate")
 
@@ -77,6 +78,8 @@ def main(argv):
         if spec["class_path"].endswith("ModelCheckpoint"):
             spec.setdefault("init_args", {})["dirpath"] = str(Path(run_dir, "checkpoints"))
         callbacks.append(instantiate(spec))
+    if cfg.get("freeze_decoder_epochs"):
+        callbacks.append(FreezeDecoder(cfg["freeze_decoder_epochs"]))
     trainer = pl.Trainer(default_root_dir=run_dir, callbacks=callbacks, **trainer_cfg)
     model = LitCoMER(**cfg["model"])
     datamodule = HME100KDatamodule(**(cfg.get("data") or {}))
@@ -85,8 +88,14 @@ def main(argv):
     if ckpt == "last":
         last = Path(run_dir, "checkpoints", "last.ckpt")
         ckpt = str(last) if last.exists() else None
+    imagenet = cfg.get("encoder", "comer") == "imagenet"
+    if imagenet:
+        swap_encoder(model, pretrained=not ckpt)
     if ckpt:
         print(f"using saved run: {ckpt}")
+    elif imagenet and cfg.get("init_ckpt"):
+        n = load_decoder(model, cfg["init_ckpt"])
+        print(f"ImageNet encoder; loaded {n} decoder tensors from {cfg['init_ckpt']}")
     elif cfg.get("init_ckpt"):
         state = torch.load(cfg["init_ckpt"], map_location="cpu", weights_only=False)["state_dict"]
         model.load_state_dict(state)
