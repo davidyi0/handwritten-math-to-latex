@@ -53,8 +53,9 @@ def install_dependencies():
 
 def patch_source_tree(package_dir):
     """Rewrite NumPy 2 aliases in every .py file under `package_dir`. Safe to run twice.
-    Deletes each patched file's cached .pyc: `Inf` -> `inf` keeps the file size, so a patch in the same
-    second as pip's install would leave Python running the stale cached copy.
+    Then deletes every cached .pyc under it, on every run: `Inf` -> `inf` keeps the file size, so a patch in
+    the same second as pip's install leaves a stale cached copy that Python keeps running, and a later run
+    finds nothing to patch.
     Returns the number of files changed."""
     changed = 0
     for path in Path(package_dir).rglob("*.py"):
@@ -64,8 +65,9 @@ def patch_source_tree(package_dir):
             new_text = pattern.sub(replacement, new_text)
         if new_text != text:
             path.write_text(new_text, encoding="utf-8")
-            Path(importlib.util.cache_from_source(str(path))).unlink(missing_ok=True)
             changed += 1
+    for cached in Path(package_dir).rglob("*.pyc"):
+        cached.unlink(missing_ok=True)
     return changed
 
 

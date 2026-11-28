@@ -49,10 +49,10 @@ class Reader:
         from comer.datamodule.crohme.batch import create_batch_from_lists
         from comer.datamodule.crohme.dataset import H_HI, H_LO, W_HI, W_LO
         from comer.datamodule.utils.transforms import ScaleToLimitRange
-        from comer.lit_comer import LitCoMER
+        from ours.imagenet_encoder import load_lit_comer
 
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = LitCoMER.load_from_checkpoint(str(ckpt), map_location=self.device).eval().to(self.device)
+        self.model = load_lit_comer(ckpt, self.device)
         if beam_size:
             self.model.hparams.beam_size = beam_size
         self.vocab, self._batch, self._torch = vocab, create_batch_from_lists, torch
@@ -76,18 +76,21 @@ class Reader:
             img = np.pad(img, ((0, 0), (need // 2, need - need // 2)), constant_values=paper)
         return img
 
-    # (latex, score) per crop, through the training loader's own grayscale + invert; higher score is surer.
-    def read(self, crops):
+    # Model input for one photo-form image, through the training loader's own grayscale + invert (PNG is lossless).
+    def prepare(self, crop):
         import cv2
 
         from ours.hme100k_datamodule import load_image
 
+        raw = cv2.imencode(".png", self._fit_ratio(crop))[1].tobytes()
+        return self.transform(load_image(raw))
+
+    # (latex, score) per crop; higher score is surer.
+    def read(self, crops):
         results = []
         with self._torch.no_grad():
             for crop in crops:
-                raw = cv2.imencode(".png", self._fit_ratio(crop))[1].tobytes()
-                image = self.transform(load_image(raw))
-                batch = self._batch(["crop"], [image], [[]])
+                batch = self._batch(["crop"], [self.prepare(crop)], [[]])
                 hyp = self.model.approximate_joint_search(batch.imgs.to(self.device), batch.mask.to(self.device))[0]
                 results.append((self.vocab.indices2label(hyp.seq), float(hyp.score)))
         return results
