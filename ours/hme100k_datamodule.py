@@ -1,7 +1,5 @@
 # HME100K data module: local Parquet files, photos turned into CROHME-style input, batched by size.
 
-import functools
-import importlib
 import io
 from pathlib import Path
 from typing import Optional
@@ -16,6 +14,7 @@ from torch.utils.data import DataLoader, Dataset
 from comer.datamodule.crohme.dataset import H_HI, H_LO, K_MAX, K_MIN, W_HI, W_LO
 from comer.datamodule.crohme.variants.supervised import collate_fn
 from comer.datamodule.utils.transforms import ScaleAugmentation, ScaleToLimitRange
+from ours.augment_hook import AugmentHook
 from ours.config import HME100K_EXCLUDED, HME100K_FILES, HME100K_VAL_SPLIT
 
 MAX_LABEL_LEN = 200
@@ -75,14 +74,6 @@ def make_batches(indices, sizes, batch_size, batch_pixels):
     return batches
 
 
-# Resolves "module:function" plus kwargs into the augmentation hook fn(image, epoch, seed).
-def resolve_hook(spec, kwargs):
-    if not spec:
-        return None
-    module, name = spec.split(":")
-    return functools.partial(getattr(importlib.import_module(module), name), **(kwargs or {}))
-
-
 class HME100KDataset(Dataset):
     def __init__(self, batches, paths, labels, images, train, scale_aug, augment, seed):
         super().__init__()
@@ -120,7 +111,7 @@ class HME100KDatamodule(pl.LightningDataModule):
         num_workers: int = 2,
         scale_aug: bool = True,
         augment: Optional[str] = None,
-        augment_kwargs: Optional[dict] = None,
+        augment_library: Optional[str] = None,
         seed: int = 7,
     ) -> None:
         super().__init__()
@@ -138,10 +129,20 @@ class HME100KDatamodule(pl.LightningDataModule):
         batches = make_batches(keep, sizes, batch_size, self.hparams.batch_pixels)
         name = "train" if train else "eval"
         print(f"{name}: {len(keep)} images in {len(batches)} batches, dropped {len(indices) - len(keep)}")
-        hook = resolve_hook(self.hparams.augment, self.hparams.augment_kwargs) if train else None
+        hook = self._hook() if train else None
         return HME100KDataset(
             batches, paths, labels, images, train, self.hparams.scale_aug, hook, self.hparams.seed
         )
+
+    # Training-only hook; the curriculum length is the trainer's max_epochs, so the two can't disagree.
+    def _hook(self):
+        hook = AugmentHook(
+            self.hparams.augment,
+            num_epochs=self.trainer.max_epochs if self.trainer is not None else None,
+            library=self.hparams.augment_library,
+        )
+        print(f"augmentation: {hook}")
+        return None if hook.mode == "off" else hook
 
     def setup(self, stage: Optional[str] = None) -> None:
         hp = self.hparams
@@ -168,7 +169,13 @@ class HME100KDatamodule(pl.LightningDataModule):
     # Hands the current epoch to the dataset; needs reload_dataloaders_every_n_epochs: 1.
     def train_dataloader(self):
         if self.trainer is not None:
-            self.train_dataset.epoch = self.trainer.current_epoch
+            epoch = self.train_dataset.epoch = self.trainer.current_epoch
+            hook = self.train_dataset.augment
+            if hook is not None:
+                s = hook.max_strength(epoch)
+                print(f"epoch {epoch}: augmentation max_s = {s:.3f}")
+                if self.trainer.logger is not None:
+                    self.trainer.logger.log_metrics({"aug_max_strength": s}, step=self.trainer.global_step)
         return self._loader(self.train_dataset, shuffle=True)
 
     def val_dataloader(self):

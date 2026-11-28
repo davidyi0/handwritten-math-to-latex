@@ -51,4 +51,4 @@ data:
   batch_pixels: 320000
   num_workers: 2
   scale_aug: true
-  augment: null
+  augment: "off"  # "off", fixed, or curriculum (see ours/augment_hook.py)
